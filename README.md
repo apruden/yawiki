@@ -1,0 +1,2 @@
+# yawiki
+yet another wiki
