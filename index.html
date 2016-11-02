@@ -1,16 +1,19 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/2.5.0/fuse.min.js"></script>
-    <script src="https://cdn.rawgit.com/vkiryukhin/vkBeautify/master/vkbeautify.js"></script>
-    <script src="https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.forest.css"/>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/fuse.js/2.5.0/fuse.min.js"></script>
+    <script src="http://cdn.rawgit.com/vkiryukhin/vkBeautify/master/vkbeautify.js"></script>
+    <script src="http://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
+    <link href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="http://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.forest.css"/>
   </head>
   <body>
-    <button type="button" onclick="javascript:addArticle();">add</button>
-    <form><input id="query" type="text" name="query"></form>
+    <div>
+      <button class="btn btn-primary" type="button" onclick="javascript:addArticle();">add</button>
+      <form><input id="query" type="text" name="query" onkeyup="javascript:search();"></form>
+    </div>
     <div id="container"></div>
     <div><button type="button" onclick="javascript:loadMore();">More</button></div>
     <div id="fs" style="display:none;position:absolute;width:100%;height:100%;top:0;left:0;">
