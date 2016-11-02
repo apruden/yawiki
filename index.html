@@ -1,13 +1,157 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/2.5.0/fuse.min.js"></script>
+    <script src="https://cdn.rawgit.com/vkiryukhin/vkBeautify/master/vkbeautify.js"></script>
+    <script src="https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.forest.css"/>
   </head>
   <body>
-    <form>
-      <input type="text" id="query">
-    </form>
-    <div id="container" >
+    <button type="button" onclick="javascript:addArticle();">add</button>
+    <form><input id="query" type="text" name="query"></form>
+    <div id="container"></div>
+    <div><button type="button" onclick="javascript:loadMore();">More</button></div>
+    <div id="fs" style="display:none;position:absolute;width:100%;height:100%;top:0;left:0;">
+      <div id="editor" style="width:100%;height:100%;"></div>
+      <button type="button" onclick="javascript:saveArticle();">save</button>
     </div>
-    <input type="button" id="loadMore">
+    <script>
+      mermaid.initialize({startOnLoad: false});
+      var renderer = new marked.Renderer();
+      var container = document.getElementById('container');
+      var fs = document.getElementById('fs');
+
+      renderer.code = function (code, language) {
+        var id = new Date().getTime().toString();
+
+        if(language === 'graph') {
+          return '<div class="graph">'  + code +  '</div>';
+        } else {
+          var i = 1;
+
+          while (id in editors) {
+            id = (new Date().getTime() + i).toString();
+            i++;
+          }
+
+          editors[id] = language;
+
+          if(['xml', 'json', 'sql'].indexOf(language) !== -1) {
+            code = vkbeautify[language](code);
+          }
+
+          code = code.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+
+          return '<div id="' + id + '" class="code" style="height:200px; width: 500px;">'  + code +  '</div>';
+        }
+      };
+
+      var keys = [];
+
+      function getKeys() {
+        for(var k in localStorage) {
+          keys.push(k);
+        }
+
+        keys.sort().reverse();
+      }
+
+      var editors = {};
+
+      function renderArticle(k, content, pos) {
+        var old = [];
+
+        for (var e in editors) {
+          old.push(e);
+        }
+
+        var mm = '<div id="' + k +'" class="post">' +
+          '<div><a href="#" onclick="javascript:deleteArticle(\'' + k + '\');">delete</a>' + ' ' +
+          '<a href="#" onclick="javascript:editArticle(\'' + k + '\')">edit</a></div><div>' +
+          marked(content, {renderer: renderer}) +
+          '</div></div>';
+        container.insertAdjacentHTML(pos || 'beforeend', mm);
+
+        mermaid.init(undefined, '.graph');
+
+        for (var x in editors) {
+          if (old.indexOf(x) === -1) {
+            var editor = ace.edit(x);
+            editor.setReadOnly(true);
+            editor.getSession().setMode('ace/mode/' + editors[x]);
+          }
+        }
+      }
+
+      function addArticle() {
+        curr = null;
+        editor.setValue('');
+        fs.style.display = 'block';
+      }
+
+      function getArticle(k) {
+        var article  = localStorage[k];
+        renderArticle(k, article);
+      }
+
+      function saveArticle() {
+        var k = new Date().getTime().toString();
+        var content = editor.getValue();
+        localStorage[k] = content;
+        keys.unshift(k);
+
+        if(curr) {
+          deleteArticle(curr);
+        }
+
+        renderArticle(k, content, 'afterbegin');
+        fs.style.display = 'none';
+      }
+
+      function editArticle(k) {
+        curr = k;
+        fs.style.display = 'block';
+        editor.setValue(localStorage[k]);
+        return false;
+      }
+
+      function loadMore() {
+        keys.slice(i, 10).forEach(function(k) {
+          i++;
+          getArticle(k);
+        });
+      }
+
+      function deleteArticle(k) {
+        keys = keys.filter(function(x) {return x !== k;});
+        delete localStorage[k];
+        var el = document.getElementById(k);
+        container.removeChild(el);
+        return false;
+      }
+
+      var curr = null;
+      var i = 0;
+      getKeys();
+      loadMore();
+      var editor = ace.edit('editor');
+
+      editor.commands.addCommand({
+        name: 'saveFile',
+        bindKey: {
+          win: 'Ctrl-S',
+          sender: 'editor|cli'
+        },
+        exec: function(env, args, request) {
+          saveArticle();
+        }
+      });
+    </script>
   </body>
 </html>
