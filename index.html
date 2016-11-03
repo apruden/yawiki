@@ -8,17 +8,51 @@
     <script src="http://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
     <link href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="http://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.forest.css"/>
+<style>
+body {
+  min-height: 2000px;
+  padding-top: 70px;
+}
+
+#fs:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+}
+</style>
   </head>
   <body>
-    <div>
-      <button class="btn btn-primary" type="button" onclick="javascript:addArticle();">add</button>
-      <form><input id="query" type="text" name="query" onkeyup="javascript:search();"></form>
-    </div>
-    <div id="container"></div>
-    <div><button type="button" onclick="javascript:loadMore();">More</button></div>
-    <div id="fs" style="display:none;position:absolute;width:100%;height:100%;top:0;left:0;">
-      <div id="editor" style="width:100%;height:100%;"></div>
-      <button type="button" onclick="javascript:saveArticle();">save</button>
+    <nav class="navbar navbar-default navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-collapse">
+          <div class="col-md-9 pull-left">
+            <from class="navbar-form" role="search">
+            <input class="form-control" id="query" type="text" name="query" onkeyup="javascript:search();">
+            </from>
+          </div>
+          <ul class="nav navbar-nav">
+            <li>
+              <button class="btn btn-primary" type="button" onclick="javascript:addArticle();">add</button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="row">
+        <div class="col-md-12">
+          <div id="container" class="container">
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-12">
+          <button type="button" onclick="javascript:loadMore();">More</button>
+        </div>
+      </div>
+      <div id="fs" style="display:none;position:absolute;width:100%;height:100%;top:0;left:0;">
+        <div id="editor" style="width:100%;height:100%;"></div>
+      </div>
     </div>
     <script>
       mermaid.initialize({startOnLoad: false});
@@ -74,11 +108,11 @@
           old.push(e);
         }
 
-        var mm = '<div id="' + k +'" class="post">' +
+        var mm = '<div id="' + k +'" class="row post"><div class="col-md-12">' +
           '<div><a href="#" onclick="javascript:deleteArticle(\'' + k + '\');">delete</a>' + ' ' +
           '<a href="#" onclick="javascript:editArticle(\'' + k + '\')">edit</a></div><div>' +
           marked(content, {renderer: renderer}) +
-          '</div></div>';
+          '</div></div></div>';
         container.insertAdjacentHTML(pos || 'beforeend', mm);
 
         mermaid.init(undefined, '.graph');
@@ -95,6 +129,8 @@
       function addArticle() {
         curr = null;
         editor.setValue('');
+
+        fs.requestFullscreen();
         fs.style.display = 'block';
       }
 
@@ -119,6 +155,7 @@
 
       function editArticle(k) {
         curr = k;
+        fs.webkitRequestFullscreen();
         fs.style.display = 'block';
         editor.setValue(localStorage[k]);
         return false;
@@ -136,13 +173,43 @@
         delete localStorage[k];
         var el = document.getElementById(k);
         container.removeChild(el);
+
         return false;
       }
 
+      function search() {
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
+
+        var q = document.getElementById('query');
+
+        if (q.value) {
+          var res = fuse.search(q.value);
+          res.forEach(function(d) {
+            getArticle(d.item.id);
+          });
+        } else {
+          i = 0;
+          loadMore();
+        }
+      }
+
+      function init() {
+        getKeys();
+        loadMore();
+        var data = [];
+
+        for (var k in localStorage) {
+          data.push({id: k, data: localStorage[k]});
+        }
+
+        fuse = new Fuse(data, {keys: ['data'], include: ["score"], threshold: 0.3, tokenize: true});
+      }
+
+      var fuse = null;
       var curr = null;
       var i = 0;
-      getKeys();
-      loadMore();
       var editor = ace.edit('editor');
 
       editor.commands.addCommand({
@@ -155,6 +222,14 @@
           saveArticle();
         }
       });
+
+      document.addEventListener("webkitfullscreenchange", function( event ) {
+        if (!document.webkitIsFullScreen ) {
+          fs.style.display = 'none';
+        }
+      });
+
+      init();
     </script>
   </body>
 </html>
