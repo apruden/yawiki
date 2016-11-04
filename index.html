@@ -5,20 +5,18 @@
     <script src="http://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js"></script>
     <script src="http://cdnjs.cloudflare.com/ajax/libs/fuse.js/2.5.0/fuse.min.js"></script>
     <script src="http://cdn.rawgit.com/vkiryukhin/vkBeautify/master/vkbeautify.js"></script>
+    <script src="http://cdn.rawgit.com/zewish/rmodal.js/master/dist/rmodal.min.js"></script>
     <script src="http://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
-    <link href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css">
+    <link rel="stylesheet" href="http://cdn.rawgit.com/zewish/rmodal.js/master/dist/rmodal.css"/>
     <link rel="stylesheet" href="http://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.forest.css"/>
-<style>
+    <style>
 body {
   min-height: 2000px;
   padding-top: 70px;
 }
-
-#fs:-webkit-full-screen {
-  width: 100%;
-  height: 100%;
-}
-</style>
+    </style>
   </head>
   <body>
     <nav class="navbar navbar-default navbar-fixed-top">
@@ -26,40 +24,57 @@ body {
         <div class="navbar-collapse">
           <div class="col-md-9 pull-left">
             <from class="navbar-form" role="search">
-            <input class="form-control" id="query" type="text" name="query" onkeyup="javascript:search();">
+            <input style="width:100%;" class="form-control" id="query" type="text" name="query" onkeyup="search();">
             </from>
           </div>
           <ul class="nav navbar-nav">
             <li>
-              <button class="btn btn-primary" type="button" onclick="javascript:addArticle();">add</button>
+              <button class="btn btn-primary" type="button" onclick="addArticle();">add</button>
             </li>
           </ul>
         </div>
       </div>
     </nav>
-
     <div class="container">
       <div class="row">
         <div class="col-md-12">
-          <div id="container" class="container">
+          <div id="container">
           </div>
         </div>
       </div>
       <div class="row">
         <div class="col-md-12">
-          <button type="button" onclick="javascript:loadMore();">More</button>
+          <button type="button" onclick="loadMore();" class="btn btn-default">More</button>
         </div>
       </div>
-      <div id="fs" style="display:none;position:absolute;width:100%;height:100%;top:0;left:0;">
-        <div id="editor" style="width:100%;height:100%;"></div>
+    </div>
+    <div id="modal" class="modal">
+      <div class="modal-dialog animated">
+        <div class="modal-content">
+          <form class="form-horizontal" method="get">
+            <div class="modal-header">
+            </div>
+            <div class="modal-body">
+              <div id="editor" style="width:800px;height:500px;"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" type="button" onclick="saveArticle();">Save</button>
+              <button class="btn btn-default" type="button" onclick="modal.close();">Cancel</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
+
     <script>
-      mermaid.initialize({startOnLoad: false});
       var renderer = new marked.Renderer();
       var container = document.getElementById('container');
-      var fs = document.getElementById('fs');
+      var modal = new RModal(document.getElementById('modal'), {
+        escapeClose: true
+      });
 
+      document.title = '>> ^^ <<';
+      mermaid.initialize({startOnLoad: false});
       renderer.code = function (code, language) {
         var id = new Date().getTime().toString();
 
@@ -90,15 +105,6 @@ body {
       };
 
       var keys = [];
-
-      function getKeys() {
-        for(var k in localStorage) {
-          keys.push(k);
-        }
-
-        keys.sort().reverse();
-      }
-
       var editors = {};
 
       function renderArticle(k, content, pos) {
@@ -108,11 +114,13 @@ body {
           old.push(e);
         }
 
-        var mm = '<div id="' + k +'" class="row post"><div class="col-md-12">' +
-          '<div><a href="#" onclick="javascript:deleteArticle(\'' + k + '\');">delete</a>' + ' ' +
-          '<a href="#" onclick="javascript:editArticle(\'' + k + '\')">edit</a></div><div>' +
+        var mm = '<div id="' + k +'" class="panel panel-default">' +
+          '<div class="panel-heading">' + new Date(parseInt(k)) +
+          '<span class="pull-right"><a href="javascript:void(0);" onclick="deleteArticle(\'' + k + '\');">delete</a>' + ' ' +
+          '<a href="javascript:void(0);" onclick="editArticle(\'' + k + '\');">edit</a></span></div>' +
+          '<div class="panel-body">' +
           marked(content, {renderer: renderer}) +
-          '</div></div></div>';
+          '</div></div>';
         container.insertAdjacentHTML(pos || 'beforeend', mm);
 
         mermaid.init(undefined, '.graph');
@@ -129,9 +137,7 @@ body {
       function addArticle() {
         curr = null;
         editor.setValue('');
-
-        fs.requestFullscreen();
-        fs.style.display = 'block';
+        modal.open();
       }
 
       function getArticle(k) {
@@ -146,19 +152,18 @@ body {
         keys.unshift(k);
 
         if(curr) {
-          deleteArticle(curr);
+          deleteArticle(curr, true, true);
         }
 
+        reloadData();
         renderArticle(k, content, 'afterbegin');
-        fs.style.display = 'none';
+        modal.close();
       }
 
       function editArticle(k) {
         curr = k;
-        fs.webkitRequestFullscreen();
-        fs.style.display = 'block';
         editor.setValue(localStorage[k]);
-        return false;
+        modal.open();
       }
 
       function loadMore() {
@@ -168,50 +173,69 @@ body {
         });
       }
 
-      function deleteArticle(k) {
-        keys = keys.filter(function(x) {return x !== k;});
-        delete localStorage[k];
-        var el = document.getElementById(k);
-        container.removeChild(el);
+      function deleteArticle(k, skipReload, skipConfirm) {
+        if(skipConfirm || confirm('Delete?')) {
+          delete localStorage[k];
+          var el = document.getElementById(k);
+          container.removeChild(el);
 
-        return false;
+          if(!skipReload) {
+            reloadData();
+          }
+        }
       }
+
+      var cs = null;
 
       function search() {
-        while (container.firstChild) {
-          container.removeChild(container.firstChild);
+        if(cs) {
+          clearTimeout(cs);
         }
 
-        var q = document.getElementById('query');
+        cs = setTimeout(function() {
+          while (container.firstChild) {
+            container.removeChild(container.firstChild);
+          }
 
-        if (q.value) {
-          var res = fuse.search(q.value);
-          res.forEach(function(d) {
-            getArticle(d.item.id);
-          });
-        } else {
-          i = 0;
-          loadMore();
-        }
+          var q = document.getElementById('query');
+
+          if (q.value) {
+            var res = fuse.search(q.value);
+            res.forEach(function(d) {
+              getArticle(d.item.id);
+            });
+
+            document.title = '>> ' + q.value;
+          } else {
+            i = 0;
+            loadMore();
+            document.title = '>> ^^ <<';
+          }
+        }, 250);
       }
 
-      function init() {
-        getKeys();
-        loadMore();
+      function reloadData() {
         var data = [];
+        keys = [];
 
         for (var k in localStorage) {
+          keys.push(k);
           data.push({id: k, data: localStorage[k]});
         }
 
-        fuse = new Fuse(data, {keys: ['data'], include: ["score"], threshold: 0.3, tokenize: true});
+        keys.sort().reverse();
+        fuse = new Fuse(data, {keys: ['data'], include: ['score'], threshold: 0.3, tokenize: true});
+      }
+
+      function init() {
+        reloadData();
+        loadMore();
       }
 
       var fuse = null;
       var curr = null;
       var i = 0;
       var editor = ace.edit('editor');
-
       editor.commands.addCommand({
         name: 'saveFile',
         bindKey: {
@@ -222,13 +246,6 @@ body {
           saveArticle();
         }
       });
-
-      document.addEventListener("webkitfullscreenchange", function( event ) {
-        if (!document.webkitIsFullScreen ) {
-          fs.style.display = 'none';
-        }
-      });
-
       init();
     </script>
   </body>
