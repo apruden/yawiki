@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html manifest="yawiki.appcache">
   <head>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js"></script>
@@ -91,7 +91,6 @@ var yawiki = (function(self) {
   navigator.webkitPersistentStorage.requestQuota(5*1024*1024, function(grantedBytes) {
     window.requestFileSystem(PERSISTENT, grantedBytes, function(fs) {
       filesystem = fs;
-      debugger;
       dfs.resolve();
     }, error);
   }, error);
@@ -99,19 +98,22 @@ var yawiki = (function(self) {
   function listFiles() {
     var dirReader = filesystem.root.createReader();
     var entries = [];
+    var d = Q.defer();
 
     var fetchEntries = function() {
       dirReader.readEntries(function(results) {
         if (results.length) {
           entries = entries.concat(results);
           fetchEntries();
+        } else {
+          d.resolve(entries);
         }
       });
     };
 
     fetchEntries();
 
-    return entries;
+    return d.promise;
   }
 
   function loadFile(filename) {
@@ -131,14 +133,13 @@ var yawiki = (function(self) {
   }
 
   function saveFile(filename, content, success) {
-    debugger;
     filesystem.root.getFile(filename, {create: true}, function(fileEntry) {
       fileEntry.createWriter(function(fileWriter) {
         fileWriter.onwriteend = success;
         var contentBlob = new Blob([content], {type: 'text/plain'});
         fileWriter.write(contentBlob);
-      });
-    });
+      }, error);
+    }, error);
   }
 
   function deleteFile(filename, success) {
@@ -175,8 +176,11 @@ var yawiki = (function(self) {
   }
 
   function getPost(k) {
-    loadFile(k).then(function(post) {
-      renderPost(k, post.value);
+    data.some(function(post) {
+      if(post.id === k) {
+        renderPost(k, post.data);
+        return true;
+      }
     });
   }
 
@@ -197,9 +201,11 @@ var yawiki = (function(self) {
 
   self.editPost = function (k) {
     curr = k;
-    loadFile(k).then(function(post) {
-      editor.setValue(post.value);
-      modal.open();
+    data.some(function(post) {
+      if (post.id === k) {
+        editor.setValue(post.data);
+        modal.open();
+      }
     });
   };
 
@@ -218,16 +224,19 @@ var yawiki = (function(self) {
     }
   };
 
+  function clearPosts() {
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+  }
+
   self.search = function () {
     if(cs) {
       clearTimeout(cs);
     }
 
     cs = setTimeout(function() {
-      while (container.firstChild) {
-        container.removeChild(container.firstChild);
-      }
-
+      clearPosts();
       var q = document.getElementById('query');
 
       if (q.value) {
@@ -239,21 +248,26 @@ var yawiki = (function(self) {
         document.title = '>> ' + q.value;
       } else {
         i = 0;
-        loadMore();
+        self.loadMore();
         document.title = '>> ^^ <<';
       }
     }, 250);
   };
 
   function reloadData() {
+    clearPosts();
     data = [];
-
-    Q.all(listFiles().forEach(function(entry) {
-      return loadFile(entry);
-    })).then(function(entry) {
-      data.push({id: entry.id, data: entry.value});
-      fuse = new Fuse(data, {keys: ['data'], include: ['score'], threshold: 0.3, tokenize: true});
-      loadMore();
+    i = 0;
+    listFiles().then(function(entries) {
+      Q.all(entries.map(function(entry) {
+        return loadFile(entry.name);
+      })).then(function(entries) {
+        entries.forEach(function(entry) {
+          data.push({id: entry.id, data: entry.value});
+          fuse = new Fuse(data, {keys: ['data'], include: ['score'], threshold: 0.3, tokenize: true});
+          self.loadMore();
+        });
+      });
     });
   }
 
@@ -297,7 +311,7 @@ var yawiki = (function(self) {
         sender: 'editor|cli'
       },
       exec: function(env, args, request) {
-        savePost();
+        self.savePost();
       }
     });
 
