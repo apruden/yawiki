@@ -3,6 +3,7 @@ CACHE MANIFEST
 # Time: Sun Nov 06 2016 01:43:40 GMT+0000 (UTC)
 
 CACHE:
+index.html
 https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js
 https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js
 https://cdnjs.cloudflare.com/ajax/libs/fuse.js/2.5.0/fuse.min.js
@@ -14,6 +15,7 @@ https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css
 https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css
 https://cdn.rawgit.com/zewish/rmodal.js/master/dist/rmodal.css
 https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.forest.css
+https://cdnjs.cloudflare.com/ajax/libs/localforage/1.4.3/localforage.min.js
 
 NETWORK:
 *

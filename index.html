@@ -1,5 +1,7 @@
 <!DOCTYPE html>
 <html manifest="yawiki.appcache">
+  <!-- appcache works only when requesting form server. not for local file://. To delete goto: chrome://appcache-internals/ -->
+  <!-- TODO: appcache is deprecated. Use ServiceWorkers instead. -->
   <head>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/0.3.6/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.5/ace.js"></script>
@@ -8,6 +10,7 @@
     <script src="https://cdn.rawgit.com/zewish/rmodal.js/master/dist/rmodal.min.js"></script>
     <script src="https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/q.js/1.4.1/q.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.4.3/localforage.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css">
     <link rel="stylesheet" href="https://cdn.rawgit.com/zewish/rmodal.js/master/dist/rmodal.css"/>
@@ -70,7 +73,6 @@ body {
 var yawiki = (function(self) {
   var filesystem = null;
   var cs = null;
-  var dfs = Q.defer();
   var renderer = new marked.Renderer();
   var container = document.getElementById('container');
   var modal = new RModal(document.getElementById('modal'), {
@@ -82,70 +84,117 @@ var yawiki = (function(self) {
   var i = 0;
   var editor = ace.edit('editor');
   var editors = {};
+  var dal = new IDbDAL();
 
-  function error(e) {
-    console.error(e);
+  function FsDAL() {
+    function error(e) {
+      console.error(e);
+    }
+
+    this.init = function() {
+      var dfs = Q.defer();
+
+      window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+      navigator.webkitPersistentStorage.requestQuota(5*1024*1024, function(grantedBytes) {
+        window.requestFileSystem(PERSISTENT, grantedBytes, function(fs) {
+          filesystem = fs;
+          dfs.resolve();
+        }, error);
+      }, error);
+
+      return dfs.promise;
+    };
+
+    this.listFiles = function() {
+      var dirReader = filesystem.root.createReader();
+      var entries = [];
+      var d = Q.defer();
+
+      var fetchEntries = function() {
+        dirReader.readEntries(function(results) {
+          if (results.length) {
+            entries = entries.concat(results);
+            fetchEntries();
+          } else {
+            d.resolve(entries.map(function(entry) { return entry.name; }));
+          }
+        });
+      };
+
+      fetchEntries();
+
+      return d.promise;
+    }
+
+    this.loadFile = function(filename) {
+      var d = Q.defer();
+
+      filesystem.root.getFile(filename, {}, function(fileEntry) {
+        fileEntry.file(function(file) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            d.resolve({id: filename, data: this.result});
+          };
+          reader.readAsText(file);
+        });
+      });
+
+      return d.promise;
+    }
+
+    this.saveFile = function (filename, content) {
+      var d = Q.defer();
+      filesystem.root.getFile(filename, {create: true}, function(fileEntry) {
+        fileEntry.createWriter(function(fileWriter) {
+          fileWriter.onwriteend = function() {
+            d.resolve();
+          };
+          var contentBlob = new Blob([content], {type: 'text/plain'});
+          fileWriter.write(contentBlob);
+        }, error);
+      }, error);
+
+      return d.promise;
+    }
+
+    this.deleteFile = function (filename) {
+      var d = Q.defer();
+      filesystem.root.getFile(filename, {create: false}, function(fileEntry) {
+        fileEntry.remove(function() {
+          d.resolve();
+        });
+      });
+
+      return d.promise;
+    }
+
+    return this;
   }
 
-  window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
-  navigator.webkitPersistentStorage.requestQuota(5*1024*1024, function(grantedBytes) {
-    window.requestFileSystem(PERSISTENT, grantedBytes, function(fs) {
-      filesystem = fs;
-      dfs.resolve();
-    }, error);
-  }, error);
-
-  function listFiles() {
-    var dirReader = filesystem.root.createReader();
-    var entries = [];
-    var d = Q.defer();
-
-    var fetchEntries = function() {
-      dirReader.readEntries(function(results) {
-        if (results.length) {
-          entries = entries.concat(results);
-          fetchEntries();
-        } else {
-          d.resolve(entries);
-        }
+  function IDbDAL() {
+    this.init = function() {
+      return Q.fcall(function() {
+        return 0;
       });
     };
 
-    fetchEntries();
+    this.listFiles = function() {
+      return localforage.keys();
+    };
 
-    return d.promise;
-  }
+    this.loadFile = function(k) {
+      return localforage.getItem(k);
+    };
 
-  function loadFile(filename) {
-    var d = Q.defer();
+    this.deleteFile = function(k) {
+      return localforage.removeItem(k);
+    };
 
-    filesystem.root.getFile(filename, {}, function(fileEntry) {
-      fileEntry.file(function(file) {
-        var reader = new FileReader();
-        reader.onload = function(e) {
-          d.resolve({id:filename, value:this.result});
-        };
-        reader.readAsText(file);
-      });
-    });
+    this.saveFile = function(k, content) {
+      return localforage.setItem(k, {id:k, data: content, modified: new Date().getTime()});
+    };
 
-    return d.promise;
-  }
-
-  function saveFile(filename, content, success) {
-    filesystem.root.getFile(filename, {create: true}, function(fileEntry) {
-      fileEntry.createWriter(function(fileWriter) {
-        fileWriter.onwriteend = success;
-        var contentBlob = new Blob([content], {type: 'text/plain'});
-        fileWriter.write(contentBlob);
-      }, error);
-    }, error);
-  }
-
-  function deleteFile(filename, success) {
-    filesystem.root.getFile(filename, {create: false}, function(fileEntry) {
-      fileEntry.remove(success);
-    });
+    return this;
   }
 
   function renderPost(k, content, pos) {
@@ -184,6 +233,15 @@ var yawiki = (function(self) {
     });
   }
 
+  function saveTextAsFile(filename, content) {
+    var textFileAsBlob = new Blob([content], { type:'text/plain' });
+    var downloadLink = document.createElement('a');
+    downloadLink.download = 'yawiki_' + filename + '.md';
+    downloadLink.innerHTML = 'Download File';
+    downloadLink.href = window.URL.createObjectURL(textFileAsBlob);
+    downloadLink.click();
+  }
+
   self.addPost = function () {
     curr = null;
     editor.setValue('');
@@ -193,9 +251,10 @@ var yawiki = (function(self) {
   self.savePost = function () {
     var k = curr || new Date().getTime().toString();
     var content = editor.getValue();
-    saveFile(k, content, function() {
+    dal.saveFile(k, content).then(function() {
       reloadData();
       modal.close();
+      saveTextAsFile(k, content);
     });
   };
 
@@ -218,7 +277,7 @@ var yawiki = (function(self) {
 
   self.deletePost = function  (k) {
     if(confirm('Delete?')) {
-      deleteFile(k, function() {
+      dal.deleteFile(k).then(function() {
         reloadData();
       });
     }
@@ -258,21 +317,21 @@ var yawiki = (function(self) {
     clearPosts();
     data = [];
     i = 0;
-    listFiles().then(function(entries) {
-      Q.all(entries.map(function(entry) {
-        return loadFile(entry.name);
+    dal.listFiles().then(function(keys) {
+      Q.all(keys.map(function(k) {
+        return dal.loadFile(k);
       })).then(function(entries) {
         entries.forEach(function(entry) {
-          data.push({id: entry.id, data: entry.value});
-          fuse = new Fuse(data, {keys: ['data'], include: ['score'], threshold: 0.3, tokenize: true});
-          self.loadMore();
+          data.push(entry);
         });
+        data.sort(function(a, b) { return (b.modified || 0) - (a.modified || 0); });
+        fuse = new Fuse(data, {keys: ['data'], include: ['score'], threshold: 0.3, tokenize: true});
+        self.loadMore();
       });
     });
   }
 
   function init() {
-    console.log('>>>');
     document.title = '>> ^^ <<';
     mermaid.initialize({startOnLoad: false});
     renderer.code = function (code, language) {
@@ -314,12 +373,13 @@ var yawiki = (function(self) {
         self.savePost();
       }
     });
+    editor.getSession().setMode('ace/mode/markdown');
 
     reloadData();
   }
 
   self.modal = modal;
-  dfs.promise.then(init);
+  dal.init().then(init);
 
   return self;
 })({} || yawiki);
