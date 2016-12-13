@@ -9,6 +9,7 @@
     <script src="https://cdn.rawgit.com/vkiryukhin/vkBeautify/master/vkbeautify.js"></script>
     <script src="https://cdn.rawgit.com/zewish/rmodal.js/master/dist/rmodal.min.js"></script>
     <script src="https://cdn.rawgit.com/knsv/mermaid/0.5.8/dist/mermaid.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.7/angular.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/q.js/1.4.1/q.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.4.3/localforage.min.js"></script>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
@@ -64,6 +65,34 @@ body {
             <div class="modal-footer">
               <button class="btn btn-primary" type="button" onclick="yawiki.savePost();">Save</button>
               <button class="btn btn-default" type="button" onclick="yawiki.modal.close();">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <div id="cmdLineModal" class="modal">
+      <div class="modal-dialog animated">
+        <div class="modal-content">
+          <form class="form-horizontal" method="get">
+            <div class="modal-header">
+            </div>
+            <div class="modal-body" ng-app="cmdLineApp" ng-controller="cmdLineController">
+              <textarea ng-model="cmdLine"></textarea>
+              <div ng-repeat="arg in args">
+                <input ng-model="arg.name">
+                <input ng-model="arg.value">
+                <button><i class="fa-times"></i></button>
+              </div>
+              <div ng-show="flag">
+                <input ng-model="newArg.name">
+                <input ng-model="newArg.value">
+                <button class="btn btn-primary" ng-click="addNewArg()">add</button>
+                <button class="btn" ng-click="cancelNewArg()">cancel</button>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" type="button" onclick="saveArticle();">Save</button>
+              <button class="btn btn-default" type="button" onclick="modal.close();">Cancel</button>
             </div>
           </form>
         </div>
@@ -380,6 +409,49 @@ var yawiki = (function(self) {
 
   self.modal = modal;
   dal.init().then(init);
+
+  self.cmdLineApp = angular.module('cmdLineApp').controller('cmdLineController', function($scope) {
+        $scope.cmdLine = '';
+        $scope.args = [];
+        
+        $scope.on('args', function() {
+          var cmd = '';
+          for(var k in $scope.args) {
+            cmd += k + ' ' + $scope.args;
+          }
+          
+          $scope.cmdLine = '';
+        });
+        
+        $scope.showNewArg = function() {
+          $scope.flag = true;
+        };
+        
+        $scope.cancelNewArg = function() {
+          $scope.flag = false;
+          $scope.newArg = {};
+        };
+        
+        $scope.addArg = function() {
+          $scope.args.append(angular.copy($scope.newArg));
+          $scope.newArg = {};
+          $scope.flag = false;
+        };
+        
+        $scope.delArgs = function(el) {
+          var idx = $scope.args.indexOf(el);
+          $scope.args.splice(idx);
+        };
+        
+        $scope.parseArgs = function() {
+          var re = /(\-\-?\S+)\s+([^"]\S+|\".*\")/g;
+          var m = re.exec($scope.cmdLine);
+          while(m != null) {
+            $scope.args.push({m[1]: m[2]});
+            m = re.exec($scope.cmdLine);
+          }
+        };  
+      });
 
   return self;
 })({} || yawiki);
