@@ -11,16 +11,13 @@ var yawiki = (function(self) {
 
   const renderer = new marked.Renderer();
   const container = document.getElementById('container');
-  const modal = new RModal(document.getElementById('modal'), {
-  });
-  const cmdLineModal = new RModal(document.getElementById('cmdLineModal'), {
-  });
-  const importModal = new RModal(document.getElementById('importModal'), {
-  });
+  const modal = new RModal(document.getElementById('modal'), { });
+  const cmdLineModal = new RModal(document.getElementById('cmdLineModal'), { });
+  const importModal = new RModal(document.getElementById('importModal'), { });
   const editor = ace.edit('editor');
   const dal = new IDbDAL();
   const editors = {};
-  let data = [], fuse = null, curr = null, i = 0, filesystem = null, cs = null;
+  let data = [], fuse = null, curr = null, filesystem = null, cs = null;
 
   function renderPost(k, content, pos) {
     const old = [];
@@ -112,10 +109,7 @@ var yawiki = (function(self) {
   };
 
   self.loadMore = () => {
-    data.slice(i, 10).forEach((post) => {
-      i++;
-      getPost(post.id);
-    });
+    data.forEach((post) => getPost(post.id));
   };
 
   self.deletePost = (k) => {
@@ -149,7 +143,6 @@ var yawiki = (function(self) {
 
         document.title = '>> ' + q.value;
       } else {
-        i = 0;
         self.loadMore();
         document.title = '>> ^^ <<';
       }
@@ -159,7 +152,6 @@ var yawiki = (function(self) {
   self.reloadData = function () {
     clearPosts();
     data = [];
-    i = 0;
     dal.listFiles().then((keys) => {
       Q.all(keys.map((k) => {
         return dal.loadFile(k);
@@ -197,9 +189,11 @@ var yawiki = (function(self) {
     document.title = '>>^^<<';
     mermaid.initialize({startOnLoad: false});
     renderer.code = (code, language) => {
-      const id = new Date().getTime().toString();
+      let id = new Date().getTime().toString();
 
-      if(language === 'graph') {
+      if (!language) {
+        return `<pre>${code}</pre>`;
+      } else if(language === 'graph') {
         return `<div class="graph">${code}</div>`;
       } else {
         let i = 1;
@@ -315,7 +309,7 @@ const cmdLineApp = new Vue({
         m = re.exec(this.cmdLine);
       }
 
-      res.sort((a, b) => a.name > b.name);
+      res.sort((a, b) => a.name === b.name ? 0 : a.name > b.name ? 1 : -1);
       return res;
     },
     parseCmd: function () { this.args = this._parse(); },
